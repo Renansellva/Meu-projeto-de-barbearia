@@ -10,140 +10,123 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modelo para usuários (clientes, barbeiros, admin)
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  role      UserRole @default(CLIENTE)
-  phone     String?
-  avatar    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relacionamentos
-  appointments Appointment[]
-  barberAppointments Appointment[] @relation("BarberAppointments")
-  availability Availability[]
-
-  @@map("users")
+  id                 String          @id @default(cuid())
+  name               String
+  email              String          @unique
+  password           String?
+  emailVerified      DateTime?
+  image              String?
+  role               String          @default("CLIENT") // CLIENT, BARBER, ADMIN
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  accounts           Account[]
+  sessions           Session[]
+  clientAppointments Appointment[]   @relation("ClientAppointments")
+  
+  barber             Barber?
+  availability       Availability[]
+  auditLogs          AuditLog[]
 }
 
-// Enum para roles de usuário
-enum UserRole {
-  CLIENTE
-  BARBEIRO
-  ADMIN
-}
-
-// Modelo para serviços oferecidos
-model Service {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  duration    Int      // Duração em minutos
-  price       Decimal  @db.Decimal(10, 2)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relacionamentos
-  appointments Appointment[]
-
-  @@map("services")
-}
-
-// Modelo para barbeiros (extensão do User)
 model Barber {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  specialties String[] // Array de especialidades
-  bio         String?
-  rating      Float    @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relacionamentos
-  availability Availability[]
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialties  String[]
+  bio          String?
+  rating       Float?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  services     Service[]
   appointments Appointment[]
-
-  @@map("barbers")
+  availability Availability[]
 }
 
-// Modelo para disponibilidade dos barbeiros
+model Service {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  price        Decimal       @db.Decimal(10, 2)
+  duration     Int // Duração em minutos
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  barbers      Barber[]
+  appointments Appointment[]
+}
+
+model Appointment {
+  id         String    @id @default(cuid())
+  clientId   String
+  client     User      @relation("ClientAppointments", fields: [clientId], references: [id])
+  barberId   String
+  barber     Barber    @relation(fields: [barberId], references: [id])
+  serviceId  String
+  service    Service   @relation(fields: [serviceId], references: [id])
+  date       DateTime
+  status     String    @default("CONFIRMED") // CONFIRMED, CANCELLED, COMPLETED
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  auditLogs  AuditLog[]
+}
+
 model Availability {
   id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
   barberId  String
-  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
-  dayOfWeek Int      // 0 = Domingo, 1 = Segunda, etc.
-  startTime String   // Formato "HH:MM"
-  endTime   String   // Formato "HH:MM"
-  isActive  Boolean  @default(true)
+  barber    Barber   @relation(fields: [barberId], references: [id])
+  dayOfWeek Int // 0 = Domingo, 1 = Segunda, ...
+  startTime String // "09:00"
+  endTime   String // "18:00"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@map("availability")
 }
 
-// Modelo para agendamentos/reservas
-model Appointment {
-  id          String            @id @default(cuid())
-  clientId    String
-  client      User              @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  barberId    String?
-  barber      User?             @relation("BarberAppointments", fields: [barberId], references: [id], onDelete: SetNull)
-  serviceId   String
-  service     Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  date        DateTime
-  startTime   String            // Formato "HH:MM"
-  endTime     String            // Formato "HH:MM"
-  status      AppointmentStatus @default(PENDENTE)
-  notes       String?
-  totalPrice  Decimal           @db.Decimal(10, 2)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relacionamentos
-  auditLogs AuditLog[]
-
-  @@map("appointments")
+  @@unique([provider, providerAccountId])
 }
 
-// Enum para status dos agendamentos
-enum AppointmentStatus {
-  PENDENTE
-  CONFIRMADO
-  CANCELADO
-  CONCLUIDO
-  FALTADO
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-// Modelo para auditoria/logs
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
 model AuditLog {
-  id            String   @id @default(cuid())
-  appointmentId String
-  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  action        String   // "created", "updated", "cancelled", "confirmed"
-  oldStatus     String?
-  newStatus     String?
-  userId        String?  // Quem fez a ação
-  notes         String?
-  createdAt     DateTime @default(now())
-
-  @@map("audit_logs")
-}
-
-// Modelo para configurações do sistema
-model SystemConfig {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     String
-  type      String   @default("string") // "string", "number", "boolean", "json"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("system_config")
+  id        String      @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  details   Json?
+  createdAt DateTime    @default(now())
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
 }
