@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database para desenvolvimento
+  postgres:
+    image: postgres:15-alpine
+    container_name: barbearia-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: barbearia_db_dev
+      POSTGRES_USER: barbearia_user
+      POSTGRES_PASSWORD: barbearia_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - barbearia-dev-network
+
+  # pgAdmin para gerenciar o banco
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: barbearia-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@barbearia.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - barbearia-dev-network
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  barbearia-dev-network:
+    driver: bridge

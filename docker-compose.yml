@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: barbearia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: barbearia_db
+      POSTGRES_USER: barbearia_user
+      POSTGRES_PASSWORD: barbearia_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - barbearia-network
+
+  # Redis (opcional, para cache de sessões)
+  redis:
+    image: redis:7-alpine
+    container_name: barbearia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - barbearia-network
+
+  # Aplicação Next.js
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: barbearia-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://barbearia_user:barbearia_password@postgres:5432/barbearia_db?schema=public
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=your-secret-key-here
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=your-email@gmail.com
+      - SMTP_PASS=your-app-password
+      - NEXT_PUBLIC_BASE_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_NAME=Barbearia Elite
+      - BUSINESS_NAME=Barbearia Elite
+      - BUSINESS_PHONE=(11) 99999-9999
+      - BUSINESS_EMAIL=contato@barbeariaelite.com
+      - BUSINESS_ADDRESS=Rua das Flores, 123 - Centro, São Paulo - SP
+      - TZ=America/Sao_Paulo
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - barbearia-network
+    volumes:
+      - ./uploads:/app/uploads
+
+  # Nginx (opcional, para produção)
+  nginx:
+    image: nginx:alpine
+    container_name: barbearia-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+    networks:
+      - barbearia-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  barbearia-network:
+    driver: bridge

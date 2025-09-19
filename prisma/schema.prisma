@@ -1,0 +1,149 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo para usuários (clientes, barbeiros, admin)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(CLIENTE)
+  phone     String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  appointments Appointment[]
+  barberAppointments Appointment[] @relation("BarberAppointments")
+  availability Availability[]
+
+  @@map("users")
+}
+
+// Enum para roles de usuário
+enum UserRole {
+  CLIENTE
+  BARBEIRO
+  ADMIN
+}
+
+// Modelo para serviços oferecidos
+model Service {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  duration    Int      // Duração em minutos
+  price       Decimal  @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+// Modelo para barbeiros (extensão do User)
+model Barber {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialties String[] // Array de especialidades
+  bio         String?
+  rating      Float    @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  availability Availability[]
+  appointments Appointment[]
+
+  @@map("barbers")
+}
+
+// Modelo para disponibilidade dos barbeiros
+model Availability {
+  id        String   @id @default(cuid())
+  barberId  String
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  dayOfWeek Int      // 0 = Domingo, 1 = Segunda, etc.
+  startTime String   // Formato "HH:MM"
+  endTime   String   // Formato "HH:MM"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("availability")
+}
+
+// Modelo para agendamentos/reservas
+model Appointment {
+  id          String            @id @default(cuid())
+  clientId    String
+  client      User              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  barberId    String?
+  barber      User?             @relation("BarberAppointments", fields: [barberId], references: [id], onDelete: SetNull)
+  serviceId   String
+  service     Service           @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  date        DateTime
+  startTime   String            // Formato "HH:MM"
+  endTime     String            // Formato "HH:MM"
+  status      AppointmentStatus @default(PENDENTE)
+  notes       String?
+  totalPrice  Decimal           @db.Decimal(10, 2)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relacionamentos
+  auditLogs AuditLog[]
+
+  @@map("appointments")
+}
+
+// Enum para status dos agendamentos
+enum AppointmentStatus {
+  PENDENTE
+  CONFIRMADO
+  CANCELADO
+  CONCLUIDO
+  FALTADO
+}
+
+// Modelo para auditoria/logs
+model AuditLog {
+  id            String   @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  action        String   // "created", "updated", "cancelled", "confirmed"
+  oldStatus     String?
+  newStatus     String?
+  userId        String?  // Quem fez a ação
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// Modelo para configurações do sistema
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  type      String   @default("string") // "string", "number", "boolean", "json"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
