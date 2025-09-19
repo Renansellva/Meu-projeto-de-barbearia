@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: validatedData.name,
         email: validatedData.email,
-        phone: validatedData.phone,
+        
         password: hashedPassword,
         role: 'CLIENTE', // Por padrão, novos usuários são clientes
       },
